@@ -67,6 +67,28 @@ public class CollectionService extends BaseCrudService {
         client.send(getBaseCrudPath() + "/" + encoded + "/truncate", "DELETE", headers, null, null, null, null, null, true);
     }
 
+    public List<ObjectNode> registerSqlTables(List<String> tables, Map<String, Object> body, Map<String, Object> query, Map<String, String> headers) {
+        if (tables == null || tables.isEmpty()) {
+            throw new IllegalArgumentException("tables must contain at least one table name");
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("tables", tables);
+        if (body != null) payload.putAll(body);
+        JsonNode data = client.send(getBaseCrudPath() + "/sql/tables", "POST", headers, query, payload, null, null, null, true);
+        return toObjectList(data);
+    }
+
+    public ObjectNode importSqlTables(List<Map<String, Object>> tables, Map<String, Object> body, Map<String, Object> query, Map<String, String> headers) {
+        if (tables == null || tables.isEmpty()) {
+            throw new IllegalArgumentException("tables must contain at least one definition");
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("tables", tables);
+        if (body != null) payload.putAll(body);
+        JsonNode data = client.send(getBaseCrudPath() + "/sql/import", "POST", headers, query, payload, null, null, null, true);
+        return data != null && data.isObject() ? (ObjectNode) data : emptyObject();
+    }
+
     public boolean deleteCollection(String collectionIdOrName, Map<String, String> headers) {
         delete(collectionIdOrName, null, headers);
         return true;
@@ -303,6 +325,35 @@ public class CollectionService extends BaseCrudService {
         return toIndexList(collection);
     }
 
+    public ObjectNode setListRule(String collectionIdOrName, String rule, Map<String, String> headers) {
+        return setRule(collectionIdOrName, "listRule", rule, headers);
+    }
+
+    public ObjectNode setViewRule(String collectionIdOrName, String rule, Map<String, String> headers) {
+        return setRule(collectionIdOrName, "viewRule", rule, headers);
+    }
+
+    public ObjectNode setCreateRule(String collectionIdOrName, String rule, Map<String, String> headers) {
+        return setRule(collectionIdOrName, "createRule", rule, headers);
+    }
+
+    public ObjectNode setUpdateRule(String collectionIdOrName, String rule, Map<String, String> headers) {
+        return setRule(collectionIdOrName, "updateRule", rule, headers);
+    }
+
+    public ObjectNode setDeleteRule(String collectionIdOrName, String rule, Map<String, String> headers) {
+        return setRule(collectionIdOrName, "deleteRule", rule, headers);
+    }
+
+    public ObjectNode setRules(String collectionIdOrName, Map<String, String> rules, Map<String, String> headers) {
+        ObjectNode collection = getOne(collectionIdOrName, null, null, null, headers);
+        Map<String, Object> updated = JsonUtils.jsonNodeToMap(collection);
+        if (rules != null) {
+            rules.forEach(updated::put);
+        }
+        return update(collectionIdOrName, updated, null, null, headers);
+    }
+
     public ObjectNode getSchema(String collectionIdOrName, Map<String, String> headers) {
         String encoded = URLEncoder.encode(collectionIdOrName, StandardCharsets.UTF_8);
         JsonNode result = client.send(getBaseCrudPath() + "/" + encoded + "/schema", "GET", headers, null, null, null, null, null, true);
@@ -381,6 +432,13 @@ public class CollectionService extends BaseCrudService {
             }
         }
         return indexes;
+    }
+
+    private ObjectNode setRule(String collectionIdOrName, String ruleKey, String ruleValue, Map<String, String> headers) {
+        ObjectNode collection = getOne(collectionIdOrName, null, null, null, headers);
+        Map<String, Object> updated = JsonUtils.jsonNodeToMap(collection);
+        updated.put(ruleKey, ruleValue);
+        return update(collectionIdOrName, updated, null, null, headers);
     }
 
     private ObjectNode emptyObject() {

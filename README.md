@@ -21,6 +21,9 @@ posts.items.forEach(post -> System.out.println(post.get("title").asText()));
 Map<String, Object> payload = new HashMap<>();
 payload.put("title", "Hello Java!");
 pb.collection("posts").create(payload, null, null, null);
+
+// Run a SQL statement (superusers only)
+pb.sql.execute("SELECT id, email FROM users LIMIT 5", null, null, null);
 ```
 
 ## Installation
@@ -44,9 +47,9 @@ See `build.gradle` for the full dependency set.
 ## Features
 
 - `BosBase.send(...)` HTTP wrapper with beforeSend/afterSend hooks and auth/header injection
-- `pb.collection("name")` exposes record CRUD, auth helpers (password, OTP, OAuth2), impersonation, and realtime subscriptions
+- `pb.collection("name")` exposes record CRUD, auth helpers (password, OTP, OAuth2, custom tokens), impersonation, and realtime subscriptions
 - Batch requests via `pb.createBatch()`
-- Services match the JS SDK: collections, files, logs, realtime, pubsub, health, backups, crons, vectors, LLM documents, LangChaingo, caches, settings, GraphQL
+- Services match the JS SDK: collections, files, logs, realtime, pubsub, health, backups, crons, vectors, LLM documents, LangChaingo, caches, settings, GraphQL, SQL
 - Filter helper `pb.filter("title ~ {:title}", Map.of("title", "demo"))` with the same escaping rules as the JS SDK
 - Multipart uploads using `FileAttachment` (single or multi-value fields)
 - Auth stores: `BaseAuthStore`, `AuthStore` (memory), `LocalAuthStore` (Preferences), `AsyncAuthStore` (custom persistence)

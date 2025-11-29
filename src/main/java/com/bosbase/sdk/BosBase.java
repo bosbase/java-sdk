@@ -15,6 +15,7 @@ import com.bosbase.sdk.services.PubSubService;
 import com.bosbase.sdk.services.RecordService;
 import com.bosbase.sdk.services.RealtimeService;
 import com.bosbase.sdk.services.SettingsService;
+import com.bosbase.sdk.services.SQLService;
 import com.bosbase.sdk.services.VectorService;
 import com.bosbase.sdk.JsonUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -105,6 +106,7 @@ public class BosBase {
     public final CacheService caches;
     public final GraphQLService graphql;
     public final SettingsService settings;
+    public final SQLService sql;
 
     private final ObjectMapper mapper = JsonUtils.MAPPER;
     private final Map<String, RecordService> recordServices = new ConcurrentHashMap<>();
@@ -140,6 +142,7 @@ public class BosBase {
         this.caches = new CacheService(this);
         this.graphql = new GraphQLService(this);
         this.settings = new SettingsService(this);
+        this.sql = new SQLService(this);
     }
 
     public RecordService admins() {

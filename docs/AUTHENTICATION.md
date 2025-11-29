@@ -118,9 +118,29 @@ ObjectNode result = pb.collection("users").requestOTP("test@example.com", null, 
 // Step 2: User enters OTP from email
 ObjectNode authData = pb.collection("users").authWithOTP(
     result.path("otpId").asText(),
-    "123456",  // OTP code from email
+    "123456",  // OTP code from email (sent as `password` to match the API)
     null, null, null, null, null, null, null, null
 );
+```
+
+## Custom Token Authentication
+
+Bind a custom token to an auth record and reuse it later for signing in without a password.
+
+**Backend Endpoints:**
+- `POST /api/collections/{collection}/bind-token`
+- `POST /api/collections/{collection}/unbind-token`
+- `POST /api/collections/{collection}/auth-with-token`
+
+```java
+// Bind a custom token after verifying email/password
+pb.collection("users").bindCustomToken("test@example.com", "password123", "my-custom-token", null, null, null);
+
+// Authenticate with the previously bound token
+pb.collection("users").authWithToken("my-custom-token", null, null, null, null, null, null, null);
+
+// Remove the binding if needed
+pb.collection("users").unbindCustomToken("test@example.com", "password123", "my-custom-token", null, null, null);
 ```
 
 ## OAuth2 Authentication
@@ -377,4 +397,3 @@ if (err.status == 401 && err.response != null && err.response.containsKey("mfaId
     // Proceed with second authentication factor
 }
 ```
-

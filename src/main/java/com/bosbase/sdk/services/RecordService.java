@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -190,7 +191,9 @@ public class RecordService extends BaseCrudService {
         Map<String, String> headers,
         String requestKey
     ) {
-        Map<String, Object> payload = Map.of("otpId", otpId, "otp", otp);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("otpId", otpId);
+        payload.put("password", otp);
         Map<String, Object> params = new HashMap<>();
         if (mfaId != null) params.put("mfaId", mfaId);
         if (query != null) params.putAll(query);
@@ -207,6 +210,100 @@ public class RecordService extends BaseCrudService {
             true
         );
         return authResponse(data);
+    }
+
+    public boolean bindCustomToken(String email, String password, String token, Map<String, Object> body, Map<String, Object> query, Map<String, String> headers) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("email", email);
+        payload.put("password", password);
+        payload.put("token", token);
+        if (body != null) payload.putAll(body);
+
+        client.send(
+            baseCollectionPath() + "/bind-token",
+            "POST",
+            headers,
+            query,
+            payload,
+            null,
+            null,
+            null,
+            true
+        );
+        return true;
+    }
+
+    public boolean unbindCustomToken(String email, String password, String token, Map<String, Object> body, Map<String, Object> query, Map<String, String> headers) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("email", email);
+        payload.put("password", password);
+        payload.put("token", token);
+        if (body != null) payload.putAll(body);
+
+        client.send(
+            baseCollectionPath() + "/unbind-token",
+            "POST",
+            headers,
+            query,
+            payload,
+            null,
+            null,
+            null,
+            true
+        );
+        return true;
+    }
+
+    public ObjectNode authWithToken(
+        String token,
+        String expand,
+        String fields,
+        Map<String, Object> body,
+        Map<String, Object> query,
+        Map<String, String> headers,
+        Long autoRefreshThresholdSeconds,
+        String requestKey
+    ) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("token", token);
+        if (body != null) payload.putAll(body);
+
+        Map<String, Object> params = new HashMap<>();
+        if (expand != null) params.put("expand", expand);
+        if (fields != null) params.put("fields", fields);
+        if (query != null) params.putAll(query);
+
+        JsonNode data = client.send(
+            baseCollectionPath() + "/auth-with-token",
+            "POST",
+            headers,
+            params,
+            payload,
+            null,
+            null,
+            requestKey,
+            true
+        );
+        ObjectNode authData = authResponse(data);
+
+        if (autoRefreshThresholdSeconds != null && isSuperusers()) {
+            Map<String, Object> refreshQuery = new HashMap<>();
+            refreshQuery.put("autoRefresh", true);
+            if (query != null) refreshQuery.putAll(query);
+
+            client.registerAutoRefresh(
+                autoRefreshThresholdSeconds,
+                () -> authRefresh(null, refreshQuery, headers),
+                () -> {
+                    Map<String, Object> reauthQuery = new HashMap<>();
+                    reauthQuery.put("autoRefresh", true);
+                    if (query != null) reauthQuery.putAll(query);
+                    authWithToken(token, expand, fields, body, reauthQuery, headers, null, requestKey);
+                }
+            );
+        }
+
+        return authData;
     }
 
     public ObjectNode authWithOAuth2Code(
@@ -436,7 +533,7 @@ public class RecordService extends BaseCrudService {
 
     public ObjectNode confirmVerification(String token, Map<String, Object> query, Map<String, String> headers) {
         Map<String, Object> payload = Map.of("token", token);
-        JsonNode data = client.send(
+        client.send(
             baseCollectionPath() + "/confirm-verification",
             "POST",
             headers,
@@ -447,7 +544,8 @@ public class RecordService extends BaseCrudService {
             null,
             true
         );
-        return authResponse(data);
+        markVerified(token);
+        return emptyObject();
     }
 
     public ObjectNode requestEmailChange(String newEmail, String oldEmail, Map<String, Object> body, Map<String, Object> query, Map<String, String> headers) {
@@ -473,7 +571,7 @@ public class RecordService extends BaseCrudService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("token", token);
         if (password != null) payload.put("password", password);
-        JsonNode data = client.send(
+        client.send(
             baseCollectionPath() + "/confirm-email-change",
             "POST",
             headers,
@@ -484,7 +582,24 @@ public class RecordService extends BaseCrudService {
             null,
             true
         );
-        return authResponse(data);
+        clearIfSameToken(token);
+        return emptyObject();
+    }
+
+    public java.util.List<ObjectNode> listExternalAuths(String recordId, Map<String, Object> query, Map<String, String> headers) {
+        String filter = client.filter("recordRef = {:recordId}", Map.of("recordId", recordId));
+        Map<String, Object> params = new HashMap<>();
+        if (query != null) params.putAll(query);
+        return client.collection("_externalAuths").getFullList(200, filter, null, null, null, params, headers);
+    }
+
+    public boolean unlinkExternalAuth(String recordId, String provider, Map<String, Object> query, Map<String, String> headers) {
+        String filter = client.filter("recordRef = {:recordId} && provider = {:provider}", Map.of("recordId", recordId, "provider", provider));
+        Map<String, Object> params = new HashMap<>();
+        if (query != null) params.putAll(query);
+        ObjectNode externalAuth = client.collection("_externalAuths").getFirstListItem(filter, null, null, params, headers);
+        client.collection("_externalAuths").delete(externalAuth.path("id").asText(), query, headers);
+        return true;
     }
 
     public BosBase impersonate(String recordId, Integer durationSeconds, Map<String, Object> query, Map<String, String> headers) {
@@ -611,6 +726,49 @@ public class RecordService extends BaseCrudService {
         return obj;
     }
 
+    private void markVerified(String verificationToken) {
+        ObjectNode payload = decodeJwtPayload(verificationToken);
+        ObjectNode model = authStore().getModel();
+        if (payload == null || model == null) return;
+
+        String payloadId = payload.path("id").asText(null);
+        String payloadCollection = payload.path("collectionId").asText(null);
+        String modelId = model.path("id").asText(null);
+        String modelCollection = model.path("collectionId").asText(null);
+        if (payloadId != null && payloadId.equals(modelId) && Objects.equals(payloadCollection, modelCollection)) {
+            ObjectNode updated = model.deepCopy();
+            updated.put("verified", true);
+            authStore().save(authStore().getToken(), updated);
+        }
+    }
+
+    private void clearIfSameToken(String verificationToken) {
+        ObjectNode payload = decodeJwtPayload(verificationToken);
+        ObjectNode model = authStore().getModel();
+        if (payload == null || model == null) return;
+
+        String payloadId = payload.path("id").asText(null);
+        String payloadCollection = payload.path("collectionId").asText(null);
+        String modelId = model.path("id").asText(null);
+        String modelCollection = model.path("collectionId").asText(null);
+        if (payloadId != null && payloadId.equals(modelId) && Objects.equals(payloadCollection, modelCollection)) {
+            authStore().clear();
+        }
+    }
+
+    private ObjectNode decodeJwtPayload(String token) {
+        if (token == null || token.isBlank()) return null;
+        String[] parts = token.split("\\.");
+        if (parts.length < 2) return null;
+        try {
+            byte[] decoded = Base64.getUrlDecoder().decode(padBase64(parts[1]));
+            JsonNode node = JsonUtils.MAPPER.readTree(decoded);
+            return node != null && node.isObject() ? (ObjectNode) node : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private boolean isAuthRecord(String recordId) {
         ObjectNode model = authStore().getModel();
         String currentId = model != null ? model.path("id").asText(null) : null;
@@ -624,6 +782,11 @@ public class RecordService extends BaseCrudService {
                 authStore().save(token, newRecord);
             }
         }
+    }
+
+    private String padBase64(String raw) {
+        int padding = (4 - raw.length() % 4) % 4;
+        return raw + "=".repeat(padding);
     }
 
     private ObjectNode emptyObject() {

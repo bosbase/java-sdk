@@ -113,6 +113,19 @@ You can have as many Auth collections as you want (users, managers, staffs, memb
 
 ## Collections API
 
+### Register existing SQL tables
+
+Superusers can expose existing SQL tables as BosBase collections without recreating them:
+
+```java
+pb.collections.registerSqlTables(List.of("legacy_users", "legacy_orders"), null, null, null);
+
+// Or import with custom SQL definitions
+List<Map<String, Object>> tables = new ArrayList<>();
+tables.add(Map.of("name", "reports", "sql", "CREATE TABLE IF NOT EXISTS reports(id text primary key, body text);"));
+pb.collections.importSqlTables(tables, null, null, null);
+```
+
 ### Initialize Client
 
 ```java
@@ -854,4 +867,3 @@ if (pb.authStore.isValid()) {
 // Logout
 pb.authStore.clear();
 ```
-
