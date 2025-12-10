@@ -18,8 +18,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
-      OSSRH_USERNAME: ${{ secrets.MAVEN_CENTRAL_USER }}
-      OSSRH_PASSWORD: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+      # Use standard Sonatype credentials secrets
+      OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+      OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
       SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
       SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
       SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
@@ -50,6 +51,14 @@ jobs:
             exit 1
           fi
           echo "Signing key configured: ${SIGNING_KEY_ID}"
+
+      - name: Verify Sonatype credentials
+        run: |
+          if [ -z "$OSSRH_USERNAME" ] || [ -z "$OSSRH_PASSWORD" ]; then
+            echo "OSSRH_USERNAME or OSSRH_PASSWORD is missing. Configure GitHub secrets before publishing."
+            exit 1
+          fi
+          echo "Sonatype credentials found for user: ${OSSRH_USERNAME}"
 
       - name: Build and test
         run: gradle --no-daemon clean test
