@@ -86,10 +86,14 @@ signing {
 nexusPublishing {
     repositories {
         sonatype {
-            nexusUrl.set(uri("https://s01.oss.sonatype.org/service/local/"))
-            snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
-            username.set(System.getenv("OSSRH_USERNAME"))
-            password.set(System.getenv("OSSRH_PASSWORD"))
+            // Updated for Central Publishing Portal (OSSRH EOL June 30, 2025)
+            // Uses OSSRH Staging API service endpoint for gradle-nexus.publish-plugin compatibility
+            // Portal docs: https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
+            // Auth requires Central Portal user tokens (not legacy OSSRH tokens)
+            username.set(System.getenv("OSSRH_USERNAME")) // Portal token username
+            password.set(System.getenv("OSSRH_PASSWORD")) // Portal token password
         }
     }
 }
