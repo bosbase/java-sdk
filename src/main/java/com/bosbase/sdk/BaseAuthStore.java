@@ -45,6 +45,42 @@ public class BaseAuthStore {
         return !isTokenExpired(baseToken);
     }
 
+    /**
+     * Checks whether the current auth state belongs to a superuser account.
+     */
+    public boolean isSuperuser() {
+        ObjectNode payload = getTokenPayload(baseToken);
+        String recordCollectionName = baseModel != null ? baseModel.path("collectionName").asText(null) : null;
+        String recordCollectionId = baseModel != null ? baseModel.path("collectionId").asText(null) : null;
+        String payloadCollectionId = payload != null ? payload.path("collectionId").asText(null) : null;
+        String payloadType = payload != null ? payload.path("type").asText(null) : null;
+
+        boolean isAuthToken = "auth".equals(payloadType);
+        boolean matchesSuperuserCollection = "_superusers".equals(recordCollectionName)
+            || "pbc_3142635823".equals(recordCollectionId)
+            || "_superusers".equals(payload != null ? payload.path("collectionName").asText(null) : null)
+            || "pbc_3142635823".equals(payloadCollectionId);
+
+        return isAuthToken && matchesSuperuserCollection;
+    }
+
+    /**
+     * @deprecated use {@link #isSuperuser()} instead.
+     */
+    @Deprecated
+    public boolean isAdmin() {
+        return isSuperuser();
+    }
+
+    /**
+     * @deprecated prefer checking {@link #isSuperuser()} to distinguish auth record types.
+     */
+    @Deprecated
+    public boolean isAuthRecord() {
+        ObjectNode payload = getTokenPayload(baseToken);
+        return payload != null && "auth".equals(payload.path("type").asText(null)) && !isSuperuser();
+    }
+
     public void save(String newToken, ObjectNode newModel) {
         this.baseToken = newToken;
         this.baseModel = newModel;
@@ -162,9 +198,21 @@ public class BaseAuthStore {
         String[] parts = token.split("\\.");
         if (parts.length < 2) return null;
         try {
+            ObjectNode payload = getTokenPayload(token);
+            return payload != null && payload.path("exp").isNumber() ? payload.path("exp").asLong() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    protected static ObjectNode getTokenPayload(String token) {
+        if (token == null || token.isBlank()) return null;
+        String[] parts = token.split("\\.");
+        if (parts.length < 2) return null;
+        try {
             byte[] decoded = Base64.getUrlDecoder().decode(padBase64(parts[1]));
             JsonNode node = JsonUtils.MAPPER.readTree(new String(decoded, StandardCharsets.UTF_8));
-            return node.path("exp").isNumber() ? node.path("exp").asLong() : null;
+            return node != null && node.isObject() ? (ObjectNode) node : null;
         } catch (Exception e) {
             return null;
         }

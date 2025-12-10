@@ -12,8 +12,12 @@ import com.bosbase.sdk.services.LLMDocumentService;
 import com.bosbase.sdk.services.LangChaingoService;
 import com.bosbase.sdk.services.LogService;
 import com.bosbase.sdk.services.PubSubService;
+import com.bosbase.sdk.services.PluginService;
 import com.bosbase.sdk.services.RecordService;
 import com.bosbase.sdk.services.RealtimeService;
+import com.bosbase.sdk.services.RedisService;
+import com.bosbase.sdk.services.ScriptPermissionsService;
+import com.bosbase.sdk.services.ScriptService;
 import com.bosbase.sdk.services.SettingsService;
 import com.bosbase.sdk.services.SQLService;
 import com.bosbase.sdk.services.VectorService;
@@ -107,6 +111,10 @@ public class BosBase {
     public final GraphQLService graphql;
     public final SettingsService settings;
     public final SQLService sql;
+    public final RedisService redis;
+    public final ScriptService scripts;
+    public final ScriptPermissionsService scriptsPermissions;
+    public final PluginService plugins;
 
     private final ObjectMapper mapper = JsonUtils.MAPPER;
     private final Map<String, RecordService> recordServices = new ConcurrentHashMap<>();
@@ -140,9 +148,13 @@ public class BosBase {
         this.llmDocuments = new LLMDocumentService(this);
         this.langchaingo = new LangChaingoService(this);
         this.caches = new CacheService(this);
+        this.redis = new RedisService(this);
         this.graphql = new GraphQLService(this);
         this.settings = new SettingsService(this);
         this.sql = new SQLService(this);
+        this.scripts = new ScriptService(this);
+        this.scriptsPermissions = new ScriptPermissionsService(this);
+        this.plugins = new PluginService(this);
     }
 
     public RecordService admins() {

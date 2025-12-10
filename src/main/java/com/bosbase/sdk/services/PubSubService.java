@@ -53,6 +53,24 @@ public class PubSubService extends BaseService {
         }
     }
 
+    public static class RealtimeMessage<T> {
+        public final String topic;
+        public final String event;
+        public final T payload;
+        public final String ref;
+        public final String id;
+        public final String created;
+
+        public RealtimeMessage(String topic, String event, T payload, String ref, String id, String created) {
+            this.topic = topic;
+            this.event = event;
+            this.payload = payload;
+            this.ref = ref;
+            this.id = id;
+            this.created = created;
+        }
+    }
+
     private static class PendingAck {
         final Consumer<Map<String, Object>> resolve;
         final Consumer<Throwable> reject;
@@ -120,6 +138,22 @@ public class PubSubService extends BaseService {
         }
     }
 
+    /**
+     * Publish a realtime message envelope `{topic, event, payload, ref}` over the pub/sub websocket.
+     */
+    public PublishAck realtimePublish(String topic, String event, Object payload, String ref) {
+        if (event == null || event.trim().isEmpty()) {
+            throw new IllegalArgumentException("event must be set.");
+        }
+        Map<String, Object> envelope = new HashMap<>();
+        envelope.put("event", event);
+        envelope.put("payload", payload);
+        if (ref != null && !ref.isBlank()) {
+            envelope.put("ref", ref);
+        }
+        return publish(topic, envelope);
+    }
+
     public Runnable subscribe(String topic, Consumer<PubSubMessage<Object>> callback) {
         if (topic == null || topic.isBlank()) throw new IllegalArgumentException("topic must be set.");
 
@@ -168,6 +202,45 @@ public class PubSubService extends BaseService {
                 disconnect();
             }
         };
+    }
+
+    /**
+     * Subscribe to realtime messages emitted on a topic.
+     */
+    public Runnable realtimeSubscribe(String topic, Consumer<RealtimeMessage<Object>> callback) {
+        if (callback == null) throw new IllegalArgumentException("callback must be set.");
+        return subscribe(topic, msg -> {
+            Object data = msg.data;
+            String event = "";
+            Object payload = data;
+            String ref = null;
+
+            if (data instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) data;
+                Object maybeEvent = map.get("event");
+                if (maybeEvent instanceof String) {
+                    event = (String) maybeEvent;
+                }
+                if (map.containsKey("payload")) {
+                    payload = map.get("payload");
+                }
+                Object maybeRef = map.get("ref");
+                if (maybeRef instanceof String) {
+                    ref = (String) maybeRef;
+                }
+            }
+
+            RealtimeMessage<Object> normalized = new RealtimeMessage<>(
+                msg.topic != null ? msg.topic : topic,
+                event,
+                payload,
+                ref,
+                msg.id,
+                msg.created
+            );
+            callback.accept(normalized);
+        });
     }
 
     public void unsubscribe(String topic) {
