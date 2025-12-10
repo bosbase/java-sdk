@@ -17,9 +17,6 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: java-sdk
     env:
       OSSRH_USERNAME: ${{ secrets.MAVEN_CENTRAL_USER }}
       OSSRH_PASSWORD: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
@@ -44,7 +41,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
-          build-root-directory: java-sdk
+          build-root-directory: .
 
       - name: Verify signing credentials
         run: |
